@@ -1,0 +1,93 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "FoxESS WebSocket",
+        "description": "Enter your FoxESS Cloud credentials and OpenAPI key.",
+        "data": {
+          "email": "Email",
+          "password": "Password",
+          "api_key": "OpenAPI Key"
+        },
+        "data_description": {
+          "email": "Your FoxESS Cloud email address",
+          "password": "Your FoxESS Cloud password",
+          "api_key": "From foxesscloud.com > Profile > API Management"
+        }
+      },
+      "select_device": {
+        "title": "Select Device",
+        "description": "Choose the inverter to monitor.",
+        "data": {
+          "device_sn": "Inverter"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid email or password",
+      "invalid_api_key": "Invalid OpenAPI key",
+      "cannot_connect": "Unable to connect to FoxESS Cloud",
+      "no_devices": "No devices found on this account"
+    },
+    "abort": {
+      "already_configured": "This device is already configured"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "solar_power": { "name": "Solar Power" },
+      "grid_power": { "name": "Grid Power" },
+      "battery_power": { "name": "Battery Power" },
+      "battery_soc": { "name": "Battery SoC" },
+      "load_power": { "name": "Load Power" },
+      "normal_load": { "name": "Normal Load" },
+      "backup_load": { "name": "Backup Load" },
+      "aux_power": { "name": "Aux Power" },
+      "battery_charge": {
+        "name": "Battery Charge State",
+        "state": {
+          "idle": "Idle",
+          "charging": "Charging",
+          "discharging": "Discharging"
+        }
+      },
+      "grid_status": {
+        "name": "Grid Status",
+        "state": {
+          "importing": "Import",
+          "exporting": "Export",
+          "idle": "Idle"
+        }
+      },
+      "time_flag": { "name": "Time Flag" }
+    },
+    "binary_sensor": {
+      "websocket_connected": { "name": "WebSocket Connected" }
+    },
+    "select": {
+      "work_mode": {
+        "name": "Work Mode",
+        "state": {
+          "SelfUse": "Self Use",
+          "Feedin": "Feed In",
+          "Backup": "Backup",
+          "PeakShaving": "Peak Shaving",
+          "ForceCharge": "Force Charge",
+          "ForceDischarge": "Force Discharge"
+        }
+      }
+    },
+    "number": {
+      "min_soc_on_grid": { "name": "Min SoC (On Grid)" },
+      "export_limit": { "name": "Export Limit" }
+    },
+    "switch": {
+      "scheduler_enable": { "name": "Scheduler" }
+    },
+    "button": {
+      "refresh": { "name": "Refresh" },
+      "read_settings": { "name": "Read Settings" },
+      "test_scheduler": { "name": "Test Scheduler Write" }
+    }
+  }
+}

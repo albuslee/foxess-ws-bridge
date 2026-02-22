@@ -1,0 +1,11 @@
+{
+  "domain": "foxess_ws",
+  "name": "FoxESS WebSocket",
+  "version": "0.1.0",
+  "codeowners": ["@albuslee"],
+  "config_flow": true,
+  "documentation": "https://github.com/albuslee/foxess-ws-bridge",
+  "iot_class": "cloud_push",
+  "requirements": ["wasmtime>=25.0", "websockets>=12.0"],
+  "integration_type": "hub"
+}

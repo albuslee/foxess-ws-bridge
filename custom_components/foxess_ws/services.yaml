@@ -1,0 +1,86 @@
+set_scheduler:
+  name: Set Scheduler
+  description: Write charge/discharge schedule groups (full overwrite).
+  fields:
+    device_sn:
+      name: Device Serial Number
+      description: Inverter serial number. Defaults to the configured device if omitted.
+      required: false
+      selector:
+        device:
+          integration: foxess_ws
+    groups:
+      name: Groups
+      description: >-
+        List of scheduler group dicts. Each group must include startHour,
+        startMinute, endHour, endMinute, workMode, and extraParam
+        (with fdSoc, fdPwr, minSocOnGrid, maxSoc).
+      required: true
+      selector:
+        object:
+
+set_discharge_plan:
+  name: Set Discharge Plan
+  description: >-
+    Set the evening discharge schedule using a named plan variant.
+    Builds the full scheduler groups automatically including charge
+    windows and SelfUse fallback.
+  fields:
+    plan:
+      name: Plan
+      description: Which discharge windows to enable.
+      required: true
+      default: mandatory_only
+      selector:
+        select:
+          options:
+            - label: "Mandatory only (6-8pm)"
+              value: "mandatory_only"
+            - label: "With early (5:30-6pm + 6-8pm)"
+              value: "with_early"
+            - label: "With both (5:30-6pm + 6-8pm + 8-9pm)"
+              value: "with_both"
+    peak_fdpwr:
+      name: Peak fdPwr (W)
+      description: Discharge power for the 6-8pm window. Other windows use 6500W.
+      required: false
+      default: 6500
+      selector:
+        number:
+          min: 1000
+          max: 10500
+          step: 500
+          unit_of_measurement: W
+    device_sn:
+      name: Device Serial Number
+      description: Inverter serial number. Defaults to the configured device if omitted.
+      required: false
+      selector:
+        device:
+          integration: foxess_ws
+
+set_peak_fdpwr:
+  name: Set Peak fdPwr
+  description: >-
+    Update only the fdPwr on the 18:00-19:59 discharge group.
+    Reads the current scheduler, patches the matching group, and writes back.
+    All other groups remain unchanged.
+  fields:
+    fdpwr:
+      name: fdPwr (W)
+      description: New discharge power for the 6-8pm window.
+      required: true
+      default: 6500
+      selector:
+        number:
+          min: 1000
+          max: 10500
+          step: 500
+          unit_of_measurement: W
+    device_sn:
+      name: Device Serial Number
+      description: Inverter serial number. Defaults to the configured device if omitted.
+      required: false
+      selector:
+        device:
+          integration: foxess_ws
