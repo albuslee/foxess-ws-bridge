@@ -30,6 +30,18 @@ The official FoxESS OpenAPI only supports polling at 5-minute intervals. This in
 - A FoxESS inverter registered on [foxesscloud.com](https://www.foxesscloud.com)
 - FoxESS Cloud account credentials (email + password)
 - FoxESS OpenAPI key (from Profile > API Management on foxesscloud.com)
+- **Multi-device login enabled** (recommended) — prevents the integration from being logged out when you use the FoxESS app or web portal
+
+### Enable Multi-device Login
+
+1. Log in to [foxesscloud.com/v2](https://www.foxesscloud.com/v2/login)
+2. Click your profile icon → **System Settings**
+
+   ![System Settings](docs/fox_user_system.png)
+
+3. Go to **Advanced Settings** → Enable **Multi-device login**
+
+   ![Multi-device login](docs/fox_multi_device.png)
 
 ## Installation
 
@@ -61,41 +73,41 @@ The timezone is automatically derived from your Home Assistant system configurat
 
 ### Sensors
 
-| Entity | Description | Unit |
-|--------|-------------|------|
-| Solar Power | Current PV generation | W |
-| Grid Power | Grid import (+) / export (-) | W |
-| Battery Power | Charge (+) / discharge (-) | W |
-| Battery SoC | State of charge | % |
-| Load Power | Total household consumption | W |
-| Normal Load | Non-backup circuit load | W |
-| Backup Load | Backup circuit load | W |
-| Aux Power | Auxiliary power | W |
-| Battery Charge State | idle / charging / discharging | — |
-| Grid Status | importing / exporting / idle | — |
-| Time Flag | day / night | — |
+| Entity               | Description                   | Unit |
+| -------------------- | ----------------------------- | ---- |
+| Solar Power          | Current PV generation         | W    |
+| Grid Power           | Grid import (+) / export (-)  | W    |
+| Battery Power        | Charge (+) / discharge (-)    | W    |
+| Battery SoC          | State of charge               | %    |
+| Load Power           | Total household consumption   | W    |
+| Normal Load          | Non-backup circuit load       | W    |
+| Backup Load          | Backup circuit load           | W    |
+| Aux Power            | Auxiliary power               | W    |
+| Battery Charge State | idle / charging / discharging | —    |
+| Grid Status          | importing / exporting / idle  | —    |
+| Time Flag            | day / night                   | —    |
 
 ### Controls
 
-| Entity | Type | Description |
-|--------|------|-------------|
-| Work Mode | Select | SelfUse, Feedin, Backup, PeakShaving |
-| Min SoC (On Grid) | Number | Minimum battery SoC (0-100%) |
-| Export Limit | Number | Grid export limit (W) |
-| Scheduler | Switch | Enable/disable charge scheduler |
+| Entity            | Type   | Description                          |
+| ----------------- | ------ | ------------------------------------ |
+| Work Mode         | Select | SelfUse, Feedin, Backup, PeakShaving |
+| Min SoC (On Grid) | Number | Minimum battery SoC (0-100%)         |
+| Export Limit      | Number | Grid export limit (W)                |
+| Scheduler         | Switch | Enable/disable charge scheduler      |
 
 ### Buttons
 
-| Entity | Description |
-|--------|-------------|
-| Refresh | Force WebSocket + API data refresh |
-| Read Settings | Read and log all current inverter settings |
+| Entity               | Description                                  |
+| -------------------- | -------------------------------------------- |
+| Refresh              | Force WebSocket + API data refresh           |
+| Read Settings        | Read and log all current inverter settings   |
 | Test Scheduler Write | Round-trip scheduler read/write verification |
 
 ### Binary Sensors
 
-| Entity | Description |
-|--------|-------------|
+| Entity              | Description                 |
+| ------------------- | --------------------------- |
 | WebSocket Connected | Connection health indicator |
 
 ## Services
@@ -141,10 +153,12 @@ data:
 ```
 
 **Fields:**
+
 - `groups` (required) — List of scheduler group objects
 - `device_sn` (optional) — Target inverter SN (defaults to configured device)
 
 **Each group must include:**
+
 - `startHour`, `startMinute`, `endHour`, `endMinute` — Time window
 - `workMode` — One of: `SelfUse`, `Feedin`, `Backup`, `ForceCharge`, `ForceDischarge`
 - `extraParam` — Object with `fdSoc`, `fdPwr`, `minSocOnGrid`, `maxSoc`
@@ -157,11 +171,12 @@ Update only the discharge power (fdPwr) on a specific time window without affect
 service: foxess_ws.set_peak_fdpwr
 data:
   fdpwr: 8500
-  start_hour: 18  # optional, defaults to 18
-  end_hour: 19    # optional, defaults to 19
+  start_hour: 18 # optional, defaults to 18
+  end_hour: 19 # optional, defaults to 19
 ```
 
 **Fields:**
+
 - `fdpwr` (required) — New discharge power in watts (0-30000)
 - `start_hour` (optional, default 18) — Start hour of the target group
 - `end_hour` (optional, default 19) — End hour of the target group
@@ -314,10 +329,10 @@ The `signature.wasm` file originates from the FoxESS web portal and is their int
 
 ### Dual API Approach
 
-| API | Auth | Use Case | Speed |
-|-----|------|----------|-------|
-| Web API | WASM signature | Scheduler writes | Fast, no rate limit |
-| OpenAPI | API key + MD5 | Settings control (work mode, min SoC, export limit) | Rate limited |
+| API     | Auth           | Use Case                                            | Speed               |
+| ------- | -------------- | --------------------------------------------------- | ------------------- |
+| Web API | WASM signature | Scheduler writes                                    | Fast, no rate limit |
+| OpenAPI | API key + MD5  | Settings control (work mode, min SoC, export limit) | Rate limited        |
 
 The web API is preferred for scheduler operations because it responds immediately and has no rate limiting. The OpenAPI is used for device settings and as a fallback.
 
