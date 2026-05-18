@@ -26,17 +26,21 @@ class WebApiError(Exception):
 class FoxESSWebClient:
     """Client for FoxESS web API (browser-style auth, fast responses)."""
 
+    ERRNO_INVALID_TOKEN = 41809
+
     def __init__(
         self,
         session: aiohttp.ClientSession,
         get_signature: Callable[..., str],
         token_getter: Callable[[], str],
-        device_id: str,
+        token_refresher: Callable[[], Any] | None = None,
+        device_id: str = "",
         tz: str = "UTC",
     ) -> None:
         self._session = session
         self._get_signature = get_signature
         self._get_token = token_getter
+        self._refresh_token = token_refresher
         self._device_id = device_id
         self._tz = tz
 
@@ -52,6 +56,14 @@ class FoxESSWebClient:
 
         async with self._session.post(url, json=payload, headers=headers) as resp:
             data: dict[str, Any] = await resp.json()
+
+        if data.get("errno") == self.ERRNO_INVALID_TOKEN and self._refresh_token:
+            _LOGGER.info("Token expired, refreshing and retrying %s", path)
+            await self._refresh_token()
+            headers = self._headers(path)
+            headers["Origin"] = FOXESS_BASE_URL
+            async with self._session.post(url, json=payload, headers=headers) as resp:
+                data = await resp.json()
 
         if data.get("errno") != 0:
             _LOGGER.error(
@@ -138,7 +150,14 @@ class FoxESSWebClient:
         )
         return data.get("result", {})
 
-    async def update_peak_fdpwr(self, fdpwr: int, start_hour: int = 18, end_hour: int = 19) -> int:
+    async def update_peak_fdpwr(
+        self,
+        fdpwr: int,
+        start_hour: int = 18,
+        start_minute: int | None = None,
+        end_hour: int = 19,
+        end_minute: int | None = None,
+    ) -> int:
         """Read current scheduler, update fdpwr on a matching discharge group, write back.
 
         Returns the number of groups matched and updated.
@@ -150,14 +169,27 @@ class FoxESSWebClient:
 
         updated = 0
         for g in groups:
-            if g.get("startHour") == start_hour and g.get("endHour") == end_hour:
-                g["fdpwr"] = fdpwr
-                updated += 1
+            if g.get("startHour") != start_hour or g.get("endHour") != end_hour:
+                continue
+            if start_minute is not None and g.get("startMinute") != start_minute:
+                continue
+            if end_minute is not None and g.get("endMinute") != end_minute:
+                continue
+            g["fdpwr"] = fdpwr
+            updated += 1
 
         if updated == 0:
-            raise WebApiError(
-                f"No {start_hour:02d}:00-{end_hour:02d}:59 group found in current scheduler"
+            start_str = (
+                f"{start_hour:02d}:{start_minute:02d}"
+                if start_minute is not None
+                else f"{start_hour:02d}:xx"
             )
+            end_str = (
+                f"{end_hour:02d}:{end_minute:02d}"
+                if end_minute is not None
+                else f"{end_hour:02d}:xx"
+            )
+            raise WebApiError(f"No {start_str}-{end_str} group found in current scheduler")
 
         payload = {
             "schedulerList": groups,

@@ -207,7 +207,7 @@ class FoxESSWSCoordinator(DataUpdateCoordinator[FoxESSRealtimeData]):
         """Main loop: connect, listen, reconnect on failure."""
         while not self._shutdown:
             try:
-                await self._refresh_token()
+                await self.async_refresh_token()
                 await self._connect_and_listen()
             except asyncio.CancelledError:
                 break
@@ -224,7 +224,7 @@ class FoxESSWSCoordinator(DataUpdateCoordinator[FoxESSRealtimeData]):
             await asyncio.sleep(self._reconnect_delay)
             self._reconnect_delay = min(self._reconnect_delay * 2, WS_RECONNECT_MAX)
 
-    async def _refresh_token(self) -> None:
+    async def async_refresh_token(self) -> None:
         """Logout old session, then re-login to get a fresh token."""
         if self._token:
             await logout(self._session, self._get_signature, self._token, self._tz)

@@ -75,6 +75,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             session=session,
             get_signature=get_signature,
             token_getter=lambda: coordinator.token,
+            token_refresher=coordinator.async_refresh_token,
             device_id=device_id,
             tz=tz,
         )
@@ -157,6 +158,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 {"title": title, "message": message},
             )
 
+        def _format_groups(groups: list[dict]) -> str:
+            """Format scheduler groups into a readable summary."""
+            lines = []
+            for g in groups:
+                sh = g.get("startHour", 0)
+                sm = g.get("startMinute", 0)
+                eh = g.get("endHour", 0)
+                em = g.get("endMinute", 0)
+                mode = g.get("workMode", "?")
+                lines.append(f"{sh:02d}:{sm:02d}-{eh:02d}:{em:02d} {mode}")
+            return "\n".join(lines)
+
         async def async_handle_set_scheduler(call: ServiceCall) -> None:
             """Handle foxess_ws.set_scheduler service call."""
             sn = call.data.get("device_sn", device_sn)
@@ -166,14 +179,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 await _set_scheduler_via_web_or_fail(web, groups)
             except Exception as exc:
                 _LOGGER.error("set_scheduler failed on %s: %s", resolved_sn, exc)
-                modes = [g.get("workMode", "?") for g in groups]
                 await _notify(
                     "FoxESS Scheduler FAILED",
-                    f"Could not update {resolved_sn}.\nGroups: {', '.join(modes)}\nError: {exc}",
+                    f"Could not update schedule.\n{_format_groups(groups)}\nError: {exc}",
                     success=False,
                 )
                 raise
-            modes = [g.get("workMode", "?") for g in groups]
             _LOGGER.info(
                 "set_scheduler service: updated %s with %d groups",
                 resolved_sn,
@@ -181,7 +192,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
             await _notify(
                 "FoxESS Scheduler Updated",
-                f"Wrote {len(groups)} groups to {resolved_sn}: {', '.join(modes)}",
+                f"Wrote {len(groups)} groups:\n{_format_groups(groups)}",
             )
 
         hass.services.async_register(
@@ -201,12 +212,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             sn = call.data.get("device_sn", device_sn)
             fdpwr = int(call.data["fdpwr"])
             start_hour = int(call.data.get("start_hour", 18))
+            start_minute = call.data.get("start_minute")
             end_hour = int(call.data.get("end_hour", 19))
+            end_minute = call.data.get("end_minute")
+            if start_minute is not None:
+                start_minute = int(start_minute)
+            if end_minute is not None:
+                end_minute = int(end_minute)
             _, web, resolved_sn = _resolve_clients(sn)
             try:
                 if web is None:
                     raise RuntimeError("Web API client not available (deviceID resolution failed)")
-                count = await web.update_peak_fdpwr(fdpwr, start_hour, end_hour)
+                count = await web.update_peak_fdpwr(
+                    fdpwr, start_hour, start_minute, end_hour, end_minute
+                )
             except Exception as exc:
                 _LOGGER.error("set_peak_fdpwr failed on %s: %s", resolved_sn, exc)
                 await _notify(
@@ -215,6 +234,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     success=False,
                 )
                 raise
+            start_str = (
+                f"{start_hour:02d}:{start_minute:02d}"
+                if start_minute is not None
+                else f"{start_hour:02d}:00"
+            )
+            end_str = (
+                f"{end_hour:02d}:{end_minute:02d}"
+                if end_minute is not None
+                else f"{end_hour:02d}:59"
+            )
             _LOGGER.info(
                 "set_peak_fdpwr: updated %d group(s) to %dW on %s",
                 count,
@@ -223,7 +252,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
             await _notify(
                 "FoxESS Peak fdPwr Updated",
-                f"Set fdPwr to {fdpwr}W on {start_hour:02d}:00-{end_hour:02d}:59 ({resolved_sn})",
+                f"Set fdPwr to {fdpwr}W on {start_str}-{end_str} ({resolved_sn})",
             )
 
         hass.services.async_register(
@@ -236,9 +265,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     vol.Optional("start_hour", default=18): vol.All(
                         vol.Coerce(int), vol.Range(min=0, max=23)
                     ),
+                    vol.Optional("start_minute"): vol.All(
+                        vol.Coerce(int), vol.Range(min=0, max=59)
+                    ),
                     vol.Optional("end_hour", default=19): vol.All(
                         vol.Coerce(int), vol.Range(min=0, max=23)
                     ),
+                    vol.Optional("end_minute"): vol.All(vol.Coerce(int), vol.Range(min=0, max=59)),
                     vol.Optional("device_sn"): cv.string,
                 }
             ),

@@ -47,6 +47,15 @@ set_peak_fdpwr:
           min: 0
           max: 23
           step: 1
+    start_minute:
+      name: Start Minute
+      description: Start minute of the target group (0-59). If omitted, matches any start minute.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 59
+          step: 1
     end_hour:
       name: End Hour
       description: End hour of the target discharge group (0-23).
@@ -56,6 +65,15 @@ set_peak_fdpwr:
         number:
           min: 0
           max: 23
+          step: 1
+    end_minute:
+      name: End Minute
+      description: End minute of the target group (0-59). If omitted, matches any end minute.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 59
           step: 1
     device_sn:
       name: Device Serial Number
