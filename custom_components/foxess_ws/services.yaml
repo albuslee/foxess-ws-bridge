@@ -18,3 +18,49 @@ set_scheduler:
       required: true
       selector:
         object:
+
+set_peak_fdpwr:
+  name: Set Peak fdPwr
+  description: >-
+    Update only the fdPwr on a specific discharge group without affecting
+    other groups. Reads the current scheduler, patches the matching time
+    window, and writes back.
+  fields:
+    fdpwr:
+      name: fdPwr (W)
+      description: New discharge power for the target time window.
+      required: true
+      default: 6500
+      selector:
+        number:
+          min: 0
+          max: 30000
+          step: 500
+          unit_of_measurement: W
+    start_hour:
+      name: Start Hour
+      description: Start hour of the target discharge group (0-23).
+      required: false
+      default: 18
+      selector:
+        number:
+          min: 0
+          max: 23
+          step: 1
+    end_hour:
+      name: End Hour
+      description: End hour of the target discharge group (0-23).
+      required: false
+      default: 19
+      selector:
+        number:
+          min: 0
+          max: 23
+          step: 1
+    device_sn:
+      name: Device Serial Number
+      description: Inverter serial number. Defaults to the configured device if omitted.
+      required: false
+      selector:
+        device:
+          integration: foxess_ws

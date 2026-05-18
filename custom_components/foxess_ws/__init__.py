@@ -145,11 +145,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 )
             await web.set_scheduler(groups)
 
-        async def _notify(title: str, message: str) -> None:
-            """Create a persistent notification."""
+        async def _notify(title: str, message: str, success: bool = True) -> None:
+            """Create a persistent notification and fire an event."""
             await hass.services.async_call(
                 "persistent_notification",
                 "create",
+                {"title": title, "message": message},
+            )
+            hass.bus.async_fire(
+                f"{DOMAIN}_scheduler_{'updated' if success else 'failed'}",
                 {"title": title, "message": message},
             )
 
@@ -166,6 +170,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 await _notify(
                     "FoxESS Scheduler FAILED",
                     f"Could not update {resolved_sn}.\nGroups: {', '.join(modes)}\nError: {exc}",
+                    success=False,
                 )
                 raise
             modes = [g.get("workMode", "?") for g in groups]
@@ -187,6 +192,54 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 {
                     vol.Optional("device_sn"): cv.string,
                     vol.Required("groups"): vol.Any(list, dict),
+                }
+            ),
+        )
+
+        async def async_handle_set_peak_fdpwr(call: ServiceCall) -> None:
+            """Handle foxess_ws.set_peak_fdpwr service call."""
+            sn = call.data.get("device_sn", device_sn)
+            fdpwr = int(call.data["fdpwr"])
+            start_hour = int(call.data.get("start_hour", 18))
+            end_hour = int(call.data.get("end_hour", 19))
+            _, web, resolved_sn = _resolve_clients(sn)
+            try:
+                if web is None:
+                    raise RuntimeError("Web API client not available (deviceID resolution failed)")
+                count = await web.update_peak_fdpwr(fdpwr, start_hour, end_hour)
+            except Exception as exc:
+                _LOGGER.error("set_peak_fdpwr failed on %s: %s", resolved_sn, exc)
+                await _notify(
+                    "FoxESS Peak fdPwr FAILED",
+                    f"Could not update fdPwr to {fdpwr}W on {resolved_sn}.\nError: {exc}",
+                    success=False,
+                )
+                raise
+            _LOGGER.info(
+                "set_peak_fdpwr: updated %d group(s) to %dW on %s",
+                count,
+                fdpwr,
+                resolved_sn,
+            )
+            await _notify(
+                "FoxESS Peak fdPwr Updated",
+                f"Set fdPwr to {fdpwr}W on {start_hour:02d}:00-{end_hour:02d}:59 ({resolved_sn})",
+            )
+
+        hass.services.async_register(
+            DOMAIN,
+            "set_peak_fdpwr",
+            async_handle_set_peak_fdpwr,
+            schema=vol.Schema(
+                {
+                    vol.Required("fdpwr"): vol.All(vol.Coerce(int), vol.Range(min=0, max=30000)),
+                    vol.Optional("start_hour", default=18): vol.All(
+                        vol.Coerce(int), vol.Range(min=0, max=23)
+                    ),
+                    vol.Optional("end_hour", default=19): vol.All(
+                        vol.Coerce(int), vol.Range(min=0, max=23)
+                    ),
+                    vol.Optional("device_sn"): cv.string,
                 }
             ),
         )
@@ -213,7 +266,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if isinstance(hass.data[DOMAIN].get(eid), dict) and "api_client" in hass.data[DOMAIN][eid]
     ]
     if not remaining:
-        if hass.services.has_service(DOMAIN, "set_scheduler"):
-            hass.services.async_remove(DOMAIN, "set_scheduler")
+        for svc in ("set_scheduler", "set_peak_fdpwr"):
+            if hass.services.has_service(DOMAIN, svc):
+                hass.services.async_remove(DOMAIN, svc)
 
     return unload_ok

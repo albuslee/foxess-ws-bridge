@@ -1,0 +1,266 @@
+blueprint:
+  name: FoxESS Discharge Optimizer
+  description: >-
+    Selects discharge windows based on current battery SoC and energy.
+    Builds a full scheduler with configurable charge and discharge windows.
+    Run daily before your peak tariff period.
+  domain: script
+  input:
+    battery_soc_entity:
+      name: Battery SoC Entity
+      description: The battery state of charge sensor (%).
+      selector:
+        entity:
+          domain: sensor
+    battery_capacity_kwh:
+      name: Battery Capacity (kWh)
+      description: Total usable battery capacity in kWh.
+      default: 42
+      selector:
+        number:
+          min: 1
+          max: 200
+          step: 0.1
+          unit_of_measurement: kWh
+    high_energy_threshold:
+      name: High Energy Threshold (kWh)
+      description: Above this, use all discharge windows (early + peak + late).
+      default: 35
+      selector:
+        number:
+          min: 1
+          max: 200
+          step: 1
+          unit_of_measurement: kWh
+    medium_energy_threshold:
+      name: Medium Energy Threshold (kWh)
+      description: Above this, use early + peak windows. Below this, peak only.
+      default: 28
+      selector:
+        number:
+          min: 1
+          max: 200
+          step: 1
+          unit_of_measurement: kWh
+    charge_start_hour:
+      name: Charge Window Start Hour
+      default: 11
+      selector:
+        number:
+          min: 0
+          max: 23
+    charge_start_minute:
+      name: Charge Window Start Minute
+      default: 1
+      selector:
+        number:
+          min: 0
+          max: 59
+    charge_end_hour:
+      name: Charge Window End Hour
+      default: 13
+      selector:
+        number:
+          min: 0
+          max: 23
+    charge_end_minute:
+      name: Charge Window End Minute
+      default: 58
+      selector:
+        number:
+          min: 0
+          max: 59
+    charge_fdpwr:
+      name: Charge Power (W)
+      description: Maximum power to charge the battery during charge window.
+      default: 10500
+      selector:
+        number:
+          min: 0
+          max: 30000
+          step: 500
+          unit_of_measurement: W
+    early_discharge_start_hour:
+      name: Early Discharge Start Hour
+      default: 17
+      selector:
+        number:
+          min: 0
+          max: 23
+    early_discharge_start_minute:
+      name: Early Discharge Start Minute
+      default: 30
+      selector:
+        number:
+          min: 0
+          max: 59
+    early_discharge_end_hour:
+      name: Early Discharge End Hour
+      default: 17
+      selector:
+        number:
+          min: 0
+          max: 23
+    early_discharge_end_minute:
+      name: Early Discharge End Minute
+      default: 59
+      selector:
+        number:
+          min: 0
+          max: 59
+    peak_discharge_start_hour:
+      name: Peak Discharge Start Hour
+      default: 18
+      selector:
+        number:
+          min: 0
+          max: 23
+    peak_discharge_start_minute:
+      name: Peak Discharge Start Minute
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 59
+    peak_discharge_end_hour:
+      name: Peak Discharge End Hour
+      default: 19
+      selector:
+        number:
+          min: 0
+          max: 23
+    peak_discharge_end_minute:
+      name: Peak Discharge End Minute
+      default: 59
+      selector:
+        number:
+          min: 0
+          max: 59
+    peak_fdpwr:
+      name: Peak Discharge Power (W)
+      description: Discharge power for the peak window.
+      default: 6500
+      selector:
+        number:
+          min: 0
+          max: 30000
+          step: 500
+          unit_of_measurement: W
+    late_discharge_start_hour:
+      name: Late Discharge Start Hour
+      default: 20
+      selector:
+        number:
+          min: 0
+          max: 23
+    late_discharge_start_minute:
+      name: Late Discharge Start Minute
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 59
+    late_discharge_end_hour:
+      name: Late Discharge End Hour
+      default: 20
+      selector:
+        number:
+          min: 0
+          max: 23
+    late_discharge_end_minute:
+      name: Late Discharge End Minute
+      default: 59
+      selector:
+        number:
+          min: 0
+          max: 59
+    min_soc_on_grid:
+      name: Min SoC On Grid (%)
+      description: Minimum battery SoC to maintain.
+      default: 10
+      selector:
+        number:
+          min: 0
+          max: 100
+
+sequence:
+  - variables:
+      soc: "{{ states(!input battery_soc_entity) | float(0) }}"
+      energy: "{{ (soc / 100 * !input battery_capacity_kwh) | round(1) }}"
+      high_threshold: !input high_energy_threshold
+      medium_threshold: !input medium_energy_threshold
+      charge_group:
+        - startHour: !input charge_start_hour
+          startMinute: !input charge_start_minute
+          endHour: !input charge_end_hour
+          endMinute: !input charge_end_minute
+          workMode: ForceCharge
+          extraParam:
+            fdSoc: 100
+            fdPwr: !input charge_fdpwr
+            minSocOnGrid: !input min_soc_on_grid
+            maxSoc: 100
+      early_group:
+        - startHour: !input early_discharge_start_hour
+          startMinute: !input early_discharge_start_minute
+          endHour: !input early_discharge_end_hour
+          endMinute: !input early_discharge_end_minute
+          workMode: ForceDischarge
+          extraParam:
+            fdSoc: !input min_soc_on_grid
+            fdPwr: !input peak_fdpwr
+            minSocOnGrid: !input min_soc_on_grid
+            maxSoc: 100
+      peak_group:
+        - startHour: !input peak_discharge_start_hour
+          startMinute: !input peak_discharge_start_minute
+          endHour: !input peak_discharge_end_hour
+          endMinute: !input peak_discharge_end_minute
+          workMode: ForceDischarge
+          extraParam:
+            fdSoc: !input min_soc_on_grid
+            fdPwr: !input peak_fdpwr
+            minSocOnGrid: !input min_soc_on_grid
+            maxSoc: 100
+      late_group:
+        - startHour: !input late_discharge_start_hour
+          startMinute: !input late_discharge_start_minute
+          endHour: !input late_discharge_end_hour
+          endMinute: !input late_discharge_end_minute
+          workMode: ForceDischarge
+          extraParam:
+            fdSoc: !input min_soc_on_grid
+            fdPwr: !input peak_fdpwr
+            minSocOnGrid: !input min_soc_on_grid
+            maxSoc: 100
+      selfuse_group:
+        - startHour: 0
+          startMinute: 0
+          endHour: 23
+          endMinute: 59
+          workMode: SelfUse
+          extraParam:
+            fdSoc: !input min_soc_on_grid
+            fdPwr: !input peak_fdpwr
+            minSocOnGrid: !input min_soc_on_grid
+            maxSoc: 100
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ energy >= high_threshold }}"
+        sequence:
+          - service: foxess_ws.set_scheduler
+            data:
+              groups: "{{ charge_group + early_group + peak_group + late_group + selfuse_group }}"
+      - conditions:
+          - condition: template
+            value_template: "{{ energy >= medium_threshold }}"
+        sequence:
+          - service: foxess_ws.set_scheduler
+            data:
+              groups: "{{ charge_group + early_group + peak_group + selfuse_group }}"
+    default:
+      - service: foxess_ws.set_scheduler
+        data:
+          groups: "{{ charge_group + peak_group + selfuse_group }}"
+mode: single

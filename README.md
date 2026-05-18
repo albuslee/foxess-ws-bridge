@@ -108,9 +108,9 @@ Write a complete charge/discharge schedule to the inverter (full overwrite).
 service: foxess_ws.set_scheduler
 data:
   groups:
-    - startHour: 0
+    - startHour: 11
       startMinute: 0
-      endHour: 5
+      endHour: 13
       endMinute: 59
       workMode: ForceCharge
       extraParam:
@@ -118,7 +118,17 @@ data:
         fdPwr: 10500
         minSocOnGrid: 10
         maxSoc: 100
-    - startHour: 6
+    - startHour: 18
+      startMinute: 0
+      endHour: 19
+      endMinute: 59
+      workMode: ForceDischarge
+      extraParam:
+        fdSoc: 10
+        fdPwr: 6500
+        minSocOnGrid: 10
+        maxSoc: 100
+    - startHour: 0
       startMinute: 0
       endHour: 23
       endMinute: 59
@@ -139,180 +149,152 @@ data:
 - `workMode` — One of: `SelfUse`, `Feedin`, `Backup`, `ForceCharge`, `ForceDischarge`
 - `extraParam` — Object with `fdSoc`, `fdPwr`, `minSocOnGrid`, `maxSoc`
 
-## Example Automations
+### `foxess_ws.set_peak_fdpwr`
 
-### Charge from solar during midday, discharge during evening peak
+Update only the discharge power (fdPwr) on a specific time window without affecting other groups. Reads the current scheduler, patches the matching group, and writes back.
+
+```yaml
+service: foxess_ws.set_peak_fdpwr
+data:
+  fdpwr: 8500
+  start_hour: 18  # optional, defaults to 18
+  end_hour: 19    # optional, defaults to 19
+```
+
+**Fields:**
+- `fdpwr` (required) — New discharge power in watts (0-30000)
+- `start_hour` (optional, default 18) — Start hour of the target group
+- `end_hour` (optional, default 19) — End hour of the target group
+- `device_sn` (optional) — Target inverter SN
+
+## Events
+
+The integration fires events when scheduler operations complete, allowing you to build custom notifications:
+
+- `foxess_ws_scheduler_updated` — Fired on successful scheduler write
+- `foxess_ws_scheduler_failed` — Fired on scheduler write failure
+
+Both events include `title` and `message` in `event_data`. Example automation for mobile push:
 
 ```yaml
 automation:
-  - alias: "Daily charge/discharge schedule"
+  - alias: "FoxESS scheduler notifications"
     trigger:
-      - platform: time
-        at: "05:00:00"
+      - platform: event
+        event_type: foxess_ws_scheduler_updated
+      - platform: event
+        event_type: foxess_ws_scheduler_failed
     action:
-      - service: foxess_ws.set_scheduler
+      - service: notify.mobile_app_your_phone
         data:
-          groups:
-            - startHour: 11
-              startMinute: 0
-              endHour: 13
-              endMinute: 59
-              workMode: ForceCharge
-              extraParam:
-                fdSoc: 100
-                fdPwr: 10500
-                minSocOnGrid: 10
-                maxSoc: 100
-            - startHour: 18
-              startMinute: 0
-              endHour: 19
-              endMinute: 59
-              workMode: ForceDischarge
-              extraParam:
-                fdSoc: 10
-                fdPwr: 6500
-                minSocOnGrid: 10
-                maxSoc: 100
-            - startHour: 0
-              startMinute: 0
-              endHour: 23
-              endMinute: 59
-              workMode: SelfUse
-              extraParam:
-                fdSoc: 10
-                fdPwr: 6500
-                minSocOnGrid: 10
-                maxSoc: 100
+          title: "{{ trigger.event.data.title }}"
+          message: "{{ trigger.event.data.message }}"
 ```
 
-### Adaptive discharge plan based on battery SoC
+## Blueprints
+
+This integration ships with reusable blueprints for common battery arbitrage patterns. Import them from this repository:
+
+### Discharge Optimizer (Script Blueprint)
+
+Selects discharge windows based on current battery energy. Adapts to your tariff by configuring charge/discharge time windows and SoC thresholds.
+
+Import URL: `https://github.com/albuslee/foxess-ws-bridge/blob/main/blueprints/script/foxess_discharge_optimizer.yaml`
+
+### Peak Load Monitor (Automation Blueprint)
+
+Dynamically adjusts discharge power during peak tariff hours to maintain grid export when house load increases.
+
+Import URL: `https://github.com/albuslee/foxess-ws-bridge/blob/main/blueprints/automation/foxess_peak_load_monitor.yaml`
+
+## Example: GloBird ZeroHero Plan (Australia)
+
+This integration was originally built for battery arbitrage on the [GloBird Energy ZeroHero](https://www.globirdenergy.com.au/) plan in NSW, Australia. The ZeroHero plan has:
+
+- **Free import 11am-2pm** — Charge battery from solar during this window
+- **Peak FiT 6-8pm** — 15c/kWh feed-in tariff booster for grid export
+- **Peak import 4-11pm** — 50.6c/kWh (avoid grid import)
+
+The strategy: force-charge the battery from solar during midday free hours, then force-discharge during the 6-8pm FiT booster window to maximize export revenue.
+
+### Example schedule for GloBird ZeroHero
 
 ```yaml
-script:
-  adaptive_discharge:
-    alias: "Adaptive Discharge Plan"
-    sequence:
-      - choose:
-          # High SoC: discharge early + peak + late
-          - conditions:
-              - condition: numeric_state
-                entity_id: sensor.foxess_battery_soc
-                above: 80
-            sequence:
-              - service: foxess_ws.set_scheduler
-                data:
-                  groups:
-                    - startHour: 11
-                      startMinute: 0
-                      endHour: 13
-                      endMinute: 59
-                      workMode: ForceCharge
-                      extraParam: { fdSoc: 100, fdPwr: 10500, minSocOnGrid: 10, maxSoc: 100 }
-                    - startHour: 17
-                      startMinute: 30
-                      endHour: 17
-                      endMinute: 59
-                      workMode: ForceDischarge
-                      extraParam: { fdSoc: 10, fdPwr: 6500, minSocOnGrid: 10, maxSoc: 100 }
-                    - startHour: 18
-                      startMinute: 0
-                      endHour: 19
-                      endMinute: 59
-                      workMode: ForceDischarge
-                      extraParam: { fdSoc: 10, fdPwr: 6500, minSocOnGrid: 10, maxSoc: 100 }
-                    - startHour: 20
-                      startMinute: 0
-                      endHour: 20
-                      endMinute: 59
-                      workMode: ForceDischarge
-                      extraParam: { fdSoc: 10, fdPwr: 6500, minSocOnGrid: 10, maxSoc: 100 }
-                    - startHour: 0
-                      startMinute: 0
-                      endHour: 23
-                      endMinute: 59
-                      workMode: SelfUse
-                      extraParam: { fdSoc: 10, fdPwr: 6500, minSocOnGrid: 10, maxSoc: 100 }
-          # Medium SoC: peak only
-          - conditions:
-              - condition: numeric_state
-                entity_id: sensor.foxess_battery_soc
-                above: 50
-            sequence:
-              - service: foxess_ws.set_scheduler
-                data:
-                  groups:
-                    - startHour: 11
-                      startMinute: 0
-                      endHour: 13
-                      endMinute: 59
-                      workMode: ForceCharge
-                      extraParam: { fdSoc: 100, fdPwr: 10500, minSocOnGrid: 10, maxSoc: 100 }
-                    - startHour: 18
-                      startMinute: 0
-                      endHour: 19
-                      endMinute: 59
-                      workMode: ForceDischarge
-                      extraParam: { fdSoc: 10, fdPwr: 6500, minSocOnGrid: 10, maxSoc: 100 }
-                    - startHour: 0
-                      startMinute: 0
-                      endHour: 23
-                      endMinute: 59
-                      workMode: SelfUse
-                      extraParam: { fdSoc: 10, fdPwr: 6500, minSocOnGrid: 10, maxSoc: 100 }
-        # Low SoC: self-use only (no discharge)
-        default:
-          - service: foxess_ws.set_scheduler
-            data:
-              groups:
-                - startHour: 11
-                  startMinute: 0
-                  endHour: 13
-                  endMinute: 59
-                  workMode: ForceCharge
-                  extraParam: { fdSoc: 100, fdPwr: 10500, minSocOnGrid: 10, maxSoc: 100 }
-                - startHour: 0
-                  startMinute: 0
-                  endHour: 23
-                  endMinute: 59
-                  workMode: SelfUse
-                  extraParam: { fdSoc: 10, fdPwr: 6500, minSocOnGrid: 10, maxSoc: 100 }
+# Triggered daily at 5:25pm before the peak window
+service: foxess_ws.set_scheduler
+data:
+  groups:
+    # Charge from solar during free import window
+    - startHour: 11
+      startMinute: 1
+      endHour: 12
+      endMinute: 59
+      workMode: ForceCharge
+      extraParam: { fdSoc: 95, fdPwr: 10500, minSocOnGrid: 10, maxSoc: 100 }
+    - startHour: 13
+      startMinute: 0
+      endHour: 13
+      endMinute: 58
+      workMode: ForceCharge
+      extraParam: { fdSoc: 100, fdPwr: 10500, minSocOnGrid: 10, maxSoc: 100 }
+    # Discharge during 6-8pm FiT booster
+    - startHour: 18
+      startMinute: 0
+      endHour: 19
+      endMinute: 59
+      workMode: ForceDischarge
+      extraParam: { fdSoc: 10, fdPwr: 6500, minSocOnGrid: 10, maxSoc: 100 }
+    # Self-use for all other times
+    - startHour: 0
+      startMinute: 0
+      endHour: 23
+      endMinute: 59
+      workMode: SelfUse
+      extraParam: { fdSoc: 10, fdPwr: 6500, minSocOnGrid: 10, maxSoc: 100 }
 ```
 
-### Dynamic discharge power based on house load
+### Dynamic peak load adjustment for GloBird
+
+During the 6-8pm window, if house load increases (e.g., cooking, AC), the inverter needs to increase discharge power to maintain grid export and earn the FiT booster:
 
 ```yaml
 automation:
-  - alias: "Adjust discharge power during peak"
+  - alias: "FoxESS 6-8pm Load Monitor"
     trigger:
       - platform: numeric_state
-        entity_id: sensor.foxess_load_power
+        entity_id: sensor.foxess_kh10_load_power
         above: 1500
+        id: load_high
+      - platform: numeric_state
+        entity_id: sensor.foxess_kh10_load_power
+        below: 1300
+        id: load_low
     condition:
       - condition: time
         after: "18:00:00"
         before: "20:00:00"
     action:
-      - service: foxess_ws.set_scheduler
-        data:
-          groups:
-            - startHour: 18
-              startMinute: 0
-              endHour: 19
-              endMinute: 59
-              workMode: ForceDischarge
-              extraParam:
-                fdSoc: 10
-                fdPwr: >-
-                  {{ (states('sensor.foxess_load_power') | int + 5000) | min(10500) }}
-                minSocOnGrid: 10
-                maxSoc: 100
-            - startHour: 0
-              startMinute: 0
-              endHour: 23
-              endMinute: 59
-              workMode: SelfUse
-              extraParam: { fdSoc: 10, fdPwr: 6500, minSocOnGrid: 10, maxSoc: 100 }
+      - choose:
+          - conditions:
+              - condition: trigger
+                id: load_high
+            sequence:
+              - variables:
+                  load_w: "{{ states('sensor.foxess_kh10_load_power') | float(0) }}"
+                  new_fdpwr: "{{ [5000 + (load_w | int), 10500] | min }}"
+              - service: foxess_ws.set_peak_fdpwr
+                data:
+                  fdpwr: "{{ new_fdpwr | int }}"
+          - conditions:
+              - condition: trigger
+                id: load_low
+            sequence:
+              - service: foxess_ws.set_peak_fdpwr
+                data:
+                  fdpwr: 6500
 ```
+
+You can adapt these examples to any time-of-use tariff by changing the time windows and thresholds.
 
 ## How It Works
 

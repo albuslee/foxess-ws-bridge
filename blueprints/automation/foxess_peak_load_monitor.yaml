@@ -1,0 +1,142 @@
+blueprint:
+  name: FoxESS Peak Load Monitor
+  description: >-
+    Dynamically adjusts discharge power (fdPwr) during a peak tariff window
+    to maintain grid export. When house load exceeds a threshold, bumps the
+    discharge power to compensate. Restores default when load drops.
+  domain: automation
+  input:
+    load_entity:
+      name: Load Power Entity
+      description: The sensor measuring current house load (W).
+      selector:
+        entity:
+          domain: sensor
+    scheduler_switch:
+      name: Scheduler Switch Entity
+      description: The switch that enables/disables the FoxESS scheduler.
+      selector:
+        entity:
+          domain: switch
+    load_high_threshold:
+      name: Load High Threshold (W)
+      description: When load exceeds this, increase discharge power.
+      default: 1500
+      selector:
+        number:
+          min: 0
+          max: 10000
+          step: 100
+          unit_of_measurement: W
+    load_low_threshold:
+      name: Load Low Threshold (W)
+      description: When load drops below this, restore default discharge power.
+      default: 1300
+      selector:
+        number:
+          min: 0
+          max: 10000
+          step: 100
+          unit_of_measurement: W
+    base_fdpwr:
+      name: Base Discharge Power (W)
+      description: Default discharge power when load is low.
+      default: 6500
+      selector:
+        number:
+          min: 0
+          max: 30000
+          step: 500
+          unit_of_measurement: W
+    export_target:
+      name: Export Target (W)
+      description: Target export power added on top of house load.
+      default: 5000
+      selector:
+        number:
+          min: 0
+          max: 30000
+          step: 500
+          unit_of_measurement: W
+    max_fdpwr:
+      name: Maximum Discharge Power (W)
+      description: Never exceed this discharge power.
+      default: 10500
+      selector:
+        number:
+          min: 0
+          max: 30000
+          step: 500
+          unit_of_measurement: W
+    peak_start_time:
+      name: Peak Window Start
+      description: When to start monitoring (e.g., 18:00:00).
+      default: "18:00:00"
+      selector:
+        time:
+    peak_end_time:
+      name: Peak Window End
+      description: When to stop monitoring (e.g., 20:00:00).
+      default: "20:00:00"
+      selector:
+        time:
+    start_hour:
+      name: Scheduler Group Start Hour
+      description: Start hour of the discharge group to patch.
+      default: 18
+      selector:
+        number:
+          min: 0
+          max: 23
+    end_hour:
+      name: Scheduler Group End Hour
+      description: End hour of the discharge group to patch.
+      default: 19
+      selector:
+        number:
+          min: 0
+          max: 23
+
+trigger:
+  - platform: numeric_state
+    entity_id: !input load_entity
+    above: !input load_high_threshold
+    id: load_high
+  - platform: numeric_state
+    entity_id: !input load_entity
+    below: !input load_low_threshold
+    id: load_low
+
+condition:
+  - condition: time
+    after: !input peak_start_time
+    before: !input peak_end_time
+  - condition: state
+    entity_id: !input scheduler_switch
+    state: "on"
+
+action:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: load_high
+        sequence:
+          - variables:
+              load_w: "{{ states(!input load_entity) | float(0) }}"
+              new_fdpwr: "{{ [(!input export_target) + (load_w | int), !input max_fdpwr] | min }}"
+          - service: foxess_ws.set_peak_fdpwr
+            data:
+              fdpwr: "{{ new_fdpwr | int }}"
+              start_hour: !input start_hour
+              end_hour: !input end_hour
+      - conditions:
+          - condition: trigger
+            id: load_low
+        sequence:
+          - service: foxess_ws.set_peak_fdpwr
+            data:
+              fdpwr: !input base_fdpwr
+              start_hour: !input start_hour
+              end_hour: !input end_hour
+
+mode: single
