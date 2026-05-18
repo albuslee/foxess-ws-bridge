@@ -5,9 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-import aiohttp
 import voluptuous as vol
-
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
@@ -50,9 +48,7 @@ class FoxESSWSConfigFlow(ConfigFlow, domain=DOMAIN):
         self._devices: list[dict[str, Any]] = []
         self._get_signature: Any = None
 
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Handle the initial step — credentials."""
         errors: dict[str, str] = {}
 
@@ -67,7 +63,11 @@ class FoxESSWSConfigFlow(ConfigFlow, domain=DOMAIN):
             try:
                 self._get_signature = await self.hass.async_add_executor_job(load_wasm)
                 self._token = await login(
-                    session, self._get_signature, self._email, self._password
+                    session,
+                    self._get_signature,
+                    self._email,
+                    self._password,
+                    self.hass.config.time_zone,
                 )
             except AuthenticationError:
                 errors["base"] = "invalid_auth"
@@ -90,7 +90,10 @@ class FoxESSWSConfigFlow(ConfigFlow, domain=DOMAIN):
                 # Fetch plants for the device selection step
                 try:
                     self._plants = await get_plants(
-                        session, self._get_signature, self._token
+                        session,
+                        self._get_signature,
+                        self._token,
+                        self.hass.config.time_zone,
                     )
                 except Exception:
                     _LOGGER.exception("Failed to fetch plants")
@@ -115,9 +118,7 @@ class FoxESSWSConfigFlow(ConfigFlow, domain=DOMAIN):
             selected_sn = user_input[CONF_DEVICE_SN]
 
             # Find matching device and plant
-            device = next(
-                (d for d in self._devices if d.get("deviceSN") == selected_sn), {}
-            )
+            device = next((d for d in self._devices if d.get("deviceSN") == selected_sn), {})
             device_name = device.get("deviceType", selected_sn)
 
             # Try to match plant from the plant list
@@ -153,7 +154,5 @@ class FoxESSWSConfigFlow(ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="select_device",
-            data_schema=vol.Schema(
-                {vol.Required(CONF_DEVICE_SN): vol.In(device_options)}
-            ),
+            data_schema=vol.Schema({vol.Required(CONF_DEVICE_SN): vol.In(device_options)}),
         )

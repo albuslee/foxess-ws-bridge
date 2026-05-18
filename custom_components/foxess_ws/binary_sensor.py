@@ -7,7 +7,7 @@ from homeassistant.components.binary_sensor import (
     BinarySensorEntity,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -29,9 +29,7 @@ async def async_setup_entry(
     async_add_entities([FoxESSConnectivitySensor(coordinator, device_sn, device_name)])
 
 
-class FoxESSConnectivitySensor(
-    CoordinatorEntity[FoxESSWSCoordinator], BinarySensorEntity
-):
+class FoxESSConnectivitySensor(CoordinatorEntity[FoxESSWSCoordinator], BinarySensorEntity):
     """Binary sensor indicating WebSocket connection status."""
 
     _attr_has_entity_name = True

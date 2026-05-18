@@ -29,9 +29,7 @@ async def async_setup_entry(
     device_sn = entry.data[CONF_DEVICE_SN]
     device_name = entry.data.get(CONF_DEVICE_NAME, device_sn)
 
-    async_add_entities(
-        [FoxESSSchedulerSwitch(api_client, device_sn, device_name)]
-    )
+    async_add_entities([FoxESSSchedulerSwitch(api_client, device_sn, device_name)])
 
 
 class FoxESSSchedulerSwitch(SwitchEntity):

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
@@ -36,9 +35,7 @@ async def async_setup_entry(
     device_sn = entry.data[CONF_DEVICE_SN]
     device_name = entry.data.get(CONF_DEVICE_NAME, device_sn)
 
-    async_add_entities(
-        [FoxESSWorkModeSelect(coordinator, api_client, device_sn, device_name)]
-    )
+    async_add_entities([FoxESSWorkModeSelect(coordinator, api_client, device_sn, device_name)])
 
 
 class FoxESSWorkModeSelect(SelectEntity):

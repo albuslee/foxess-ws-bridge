@@ -66,9 +66,7 @@ class FoxESSOpenApiClient:
                 data.get("errno"),
                 data.get("msg"),
             )
-            raise OpenApiError(
-                f"OpenAPI {path}: errno={data.get('errno')}, msg={data.get('msg')}"
-            )
+            raise OpenApiError(f"OpenAPI {path}: errno={data.get('errno')}, msg={data.get('msg')}")
 
         return data
 
@@ -76,9 +74,7 @@ class FoxESSOpenApiClient:
 
     async def get_device_list(self) -> list[dict[str, Any]]:
         """Fetch list of inverter devices."""
-        data = await self._post(
-            OPENAPI_DEVICE_LIST, {"currentPage": 1, "pageSize": 100}
-        )
+        data = await self._post(OPENAPI_DEVICE_LIST, {"currentPage": 1, "pageSize": 100})
         return data.get("result", {}).get("data", [])
 
     async def get_setting(self, sn: str, key: str) -> Any:
@@ -137,9 +133,7 @@ class FoxESSOpenApiClient:
         Uses /op/v1/device/scheduler/enable which handles both
         enable/disable and group configuration.
         """
-        await self._post(
-            OPENAPI_SCHEDULER_ENABLE, {"deviceSN": sn, "groups": groups}
-        )
+        await self._post(OPENAPI_SCHEDULER_ENABLE, {"deviceSN": sn, "groups": groups})
         _LOGGER.info("Schedule updated on %s: %s", sn, groups)
 
 

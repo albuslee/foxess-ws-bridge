@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
 
 from homeassistant.components.number import NumberEntity, NumberEntityDescription
 from homeassistant.config_entries import ConfigEntry
@@ -119,9 +117,7 @@ class FoxESSNumberEntity(NumberEntity):
                 self._attr_native_value = float(result)
             self.async_write_ha_state()
         except Exception:
-            _LOGGER.warning(
-                "Failed to read %s", self.entity_description.api_key
-            )
+            _LOGGER.warning("Failed to read %s", self.entity_description.api_key)
 
     async def async_set_native_value(self, value: float) -> None:
         """Set the value via OpenAPI."""

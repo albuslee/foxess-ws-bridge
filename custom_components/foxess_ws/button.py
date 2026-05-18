@@ -76,9 +76,7 @@ class FoxESSRefreshButton(ButtonEntity):
             _LOGGER.debug("Sent WebSocket refresh")
 
         # Signal number/switch entities to re-read from API
-        async_dispatcher_send(
-            self.hass, SIGNAL_REFRESH.format(self._device_sn)
-        )
+        async_dispatcher_send(self.hass, SIGNAL_REFRESH.format(self._device_sn))
         _LOGGER.debug("Sent API refresh signal for %s", self._device_sn)
 
 
@@ -139,9 +137,7 @@ class FoxESSTestSchedulerButton(ButtonEntity):
         # Step 1: Read current groups
         before = await self._api_client.get_scheduler(self._device_sn)
         groups = before.get("groups", [])
-        _LOGGER.info(
-            "Test scheduler: read %d groups from %s", len(groups), self._device_sn
-        )
+        _LOGGER.info("Test scheduler: read %d groups from %s", len(groups), self._device_sn)
 
         # Step 2: Write same groups back
         await self._api_client.set_scheduler(self._device_sn, groups)
@@ -150,9 +146,7 @@ class FoxESSTestSchedulerButton(ButtonEntity):
         # Step 3: Read again to verify
         after = await self._api_client.get_scheduler(self._device_sn)
         after_groups = after.get("groups", [])
-        _LOGGER.info(
-            "Test scheduler: verified %d groups after write", len(after_groups)
-        )
+        _LOGGER.info("Test scheduler: verified %d groups after write", len(after_groups))
 
         if len(groups) == len(after_groups):
             _LOGGER.info("Test scheduler: PASSED — round-trip successful")

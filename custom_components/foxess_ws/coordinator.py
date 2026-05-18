@@ -6,15 +6,15 @@ import asyncio
 import json
 import logging
 import ssl
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 import aiohttp
 import websockets
-from websockets.asyncio.client import ClientConnection
-
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from websockets.asyncio.client import ClientConnection
 
 from .auth import AuthenticationError, build_ws_url, login, logout
 from .const import (
@@ -22,8 +22,8 @@ from .const import (
     BATTERY_CHARGE_MAP,
     DOMAIN,
     TOKEN_EXPIRED_CODES,
-    WS_RECONNECT_CYCLE,
     WS_KEEPALIVE_INTERVAL,
+    WS_RECONNECT_CYCLE,
     WS_RECONNECT_MAX,
     WS_RECONNECT_MIN,
 )
@@ -150,6 +150,7 @@ class FoxESSWSCoordinator(DataUpdateCoordinator[FoxESSRealtimeData]):
         password: str,
         plant_id: str,
         token: str,
+        tz: str = "UTC",
     ) -> None:
         super().__init__(
             hass,
@@ -162,6 +163,7 @@ class FoxESSWSCoordinator(DataUpdateCoordinator[FoxESSRealtimeData]):
         self._password = password
         self._plant_id = plant_id
         self._token = token
+        self._tz = tz
         self._ws: ClientConnection | None = None
         self._keepalive_task: asyncio.Task[None] | None = None
         self._listen_task: asyncio.Task[None] | None = None
@@ -218,26 +220,21 @@ class FoxESSWSCoordinator(DataUpdateCoordinator[FoxESSRealtimeData]):
             self._connected = False
             self.async_set_updated_data(self.data)  # notify sensors of disconnect
 
-            _LOGGER.info(
-                "Reconnecting in %s seconds...", self._reconnect_delay
-            )
+            _LOGGER.info("Reconnecting in %s seconds...", self._reconnect_delay)
             await asyncio.sleep(self._reconnect_delay)
-            self._reconnect_delay = min(
-                self._reconnect_delay * 2, WS_RECONNECT_MAX
-            )
+            self._reconnect_delay = min(self._reconnect_delay * 2, WS_RECONNECT_MAX)
 
     async def _refresh_token(self) -> None:
         """Logout old session, then re-login to get a fresh token."""
         if self._token:
-            await logout(
-                self._session, self._get_signature, self._token
-            )
+            await logout(self._session, self._get_signature, self._token, self._tz)
         try:
             self._token = await login(
                 self._session,
                 self._get_signature,
                 self._email,
                 self._password,
+                self._tz,
             )
             _LOGGER.debug("Token refreshed")
         except AuthenticationError:
@@ -250,9 +247,7 @@ class FoxESSWSCoordinator(DataUpdateCoordinator[FoxESSRealtimeData]):
         _LOGGER.debug("Connecting to WebSocket...")
 
         # Create SSL context in executor to avoid blocking the event loop
-        ssl_context = await self.hass.async_add_executor_job(
-            ssl.create_default_context
-        )
+        ssl_context = await self.hass.async_add_executor_job(ssl.create_default_context)
 
         async with websockets.connect(
             ws_url,
@@ -326,6 +321,7 @@ class FoxESSWSCoordinator(DataUpdateCoordinator[FoxESSRealtimeData]):
                     self._get_signature,
                     self._email,
                     self._password,
+                    self._tz,
                 )
                 _LOGGER.info("Re-authentication successful")
             except AuthenticationError:

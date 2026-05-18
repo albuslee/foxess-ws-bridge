@@ -7,3 +7,6 @@ dist/
 build/
 .vscode/
 .idea/
+.DS_Store
+*.log
+.ruff_cache/

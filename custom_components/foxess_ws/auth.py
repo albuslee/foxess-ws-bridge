@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
+import ctypes
 import hashlib
 import logging
 import time
-from datetime import datetime, timezone
-from typing import Any, Callable
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import Any
 from urllib.parse import quote
-
-import ctypes
 
 import aiohttp
 from wasmtime import Engine, FuncType, Linker, Memory, Module, Store, ValType
@@ -53,17 +53,21 @@ def load_wasm(wasm_path: str | None = None) -> Callable[..., str]:
 
     i32 = ValType.i32()
     linker.define_func(
-        "env", "emscripten_memcpy_big",
+        "env",
+        "emscripten_memcpy_big",
         FuncType([i32, i32, i32], [i32]),
-        _emscripten_memcpy_big, access_caller=True,
+        _emscripten_memcpy_big,
+        access_caller=True,
     )
     linker.define_func(
-        "env", "emscripten_resize_heap",
+        "env",
+        "emscripten_resize_heap",
         FuncType([i32], [i32]),
         _emscripten_resize_heap,
     )
     linker.define_func(
-        "env", "setTempRet0",
+        "env",
+        "setTempRet0",
         FuncType([i32], []),
         _set_temp_ret0,
     )
@@ -126,11 +130,11 @@ def _build_headers(
     url_path: str,
     token: str,
     get_signature: Callable[..., str],
-    tz: str = "Australia/Sydney",
+    tz: str,
 ) -> dict[str, str]:
     """Build request headers with WASM signature for the FoxESS web API."""
     ts = str(int(time.time() * 1000))
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
     dt_val = f"{tz}@{ts}@{now}"
     signature = get_signature(url_path, token, "en", ts)
 
@@ -150,9 +154,10 @@ async def logout(
     session: aiohttp.ClientSession,
     get_signature: Callable[..., str],
     token: str,
+    tz: str = "UTC",
 ) -> None:
     """Logout from FoxESS Cloud to destroy the current session."""
-    headers = _build_headers(FOXESS_LOGOUT_URL, token, get_signature)
+    headers = _build_headers(FOXESS_LOGOUT_URL, token, get_signature, tz)
     url = f"{FOXESS_BASE_URL}{FOXESS_LOGOUT_URL}"
     try:
         async with session.post(url, json={}, headers=headers) as resp:
@@ -170,10 +175,11 @@ async def login(
     get_signature: Callable[..., str],
     email: str,
     password: str,
+    tz: str = "UTC",
 ) -> str:
     """Login to FoxESS Cloud and return a session token."""
     md5_pass = hashlib.md5(password.encode()).hexdigest()
-    headers = _build_headers(FOXESS_LOGIN_URL, "", get_signature)
+    headers = _build_headers(FOXESS_LOGIN_URL, "", get_signature, tz)
     payload = {
         "user": email,
         "password": md5_pass,
@@ -186,9 +192,7 @@ async def login(
         data: dict[str, Any] = await resp.json()
 
     if data.get("errno") != 0:
-        raise AuthenticationError(
-            f"Login failed: errno={data.get('errno')}, msg={data.get('msg')}"
-        )
+        raise AuthenticationError(f"Login failed: errno={data.get('errno')}, msg={data.get('msg')}")
 
     token = data["result"]["token"]
     _LOGGER.debug("Login successful, token obtained")
@@ -199,10 +203,11 @@ async def get_plants(
     session: aiohttp.ClientSession,
     get_signature: Callable[..., str],
     token: str,
+    tz: str = "UTC",
 ) -> list[dict[str, Any]]:
     """Fetch the list of plants for the logged-in user."""
     url_path = f"{FOXESS_PLANT_LIST_URL}?plantName="
-    headers = _build_headers(url_path, token, get_signature)
+    headers = _build_headers(url_path, token, get_signature, tz)
 
     url = f"{FOXESS_BASE_URL}{url_path}"
     async with session.get(url, headers=headers) as resp:
