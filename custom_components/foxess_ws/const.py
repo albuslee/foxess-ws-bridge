@@ -61,12 +61,33 @@ BATTERY_CHARGE_MAP = {
     2: "discharging",
 }
 
-# Work modes
-WORK_MODES = ["SelfUse", "Feedin", "Backup", "PeakShaving"]
-SCHEDULER_WORK_MODES = [
+# Work modes — API values (sent to FoxESS)
+WORK_MODES_API = ["SelfUse", "Feedin", "Backup", "PeakShaving"]
+SCHEDULER_WORK_MODES_API = [
     "SelfUse",
     "Feedin",
     "Backup",
     "ForceCharge",
     "ForceDischarge",
+]
+
+# Work mode mapping: lowercase option key <-> API value
+WORK_MODE_TO_API = {
+    "self_use": "SelfUse",
+    "feedin": "Feedin",
+    "backup": "Backup",
+    "peak_shaving": "PeakShaving",
+    "force_charge": "ForceCharge",
+    "force_discharge": "ForceDischarge",
+}
+WORK_MODE_FROM_API = {v: k for k, v in WORK_MODE_TO_API.items()}
+
+# Option keys for select entity
+WORK_MODES = list(WORK_MODE_TO_API.keys())
+SCHEDULER_WORK_MODES = [
+    "self_use",
+    "feedin",
+    "backup",
+    "force_charge",
+    "force_discharge",
 ]

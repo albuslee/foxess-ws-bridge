@@ -16,6 +16,8 @@ from .const import (
     CONF_DEVICE_SN,
     DOMAIN,
     SCHEDULER_WORK_MODES,
+    WORK_MODE_FROM_API,
+    WORK_MODE_TO_API,
     WORK_MODES,
 )
 from .coordinator import FoxESSWSCoordinator
@@ -70,15 +72,17 @@ class FoxESSWorkModeSelect(SelectEntity):
         """Return current work mode from WebSocket data."""
         if self._coordinator.data is None:
             return None
-        mode = self._coordinator.data.work_mode
-        if not mode:
+        api_mode = self._coordinator.data.work_mode
+        if not api_mode:
             return None
-        if mode in self._attr_options:
-            return mode
-        _LOGGER.debug("Unknown work mode from WebSocket: %r", mode)
+        option = WORK_MODE_FROM_API.get(api_mode)
+        if option and option in self._attr_options:
+            return option
+        _LOGGER.debug("Unknown work mode from WebSocket: %r", api_mode)
         return None
 
     async def async_select_option(self, option: str) -> None:
         """Change the work mode via OpenAPI."""
-        await self._api_client.set_setting(self._device_sn, "WorkMode", option)
-        _LOGGER.info("Work mode changed to %s", option)
+        api_value = WORK_MODE_TO_API.get(option, option)
+        await self._api_client.set_setting(self._device_sn, "WorkMode", api_value)
+        _LOGGER.info("Work mode changed to %s (%s)", option, api_value)

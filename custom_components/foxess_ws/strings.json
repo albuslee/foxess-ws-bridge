@@ -68,12 +68,12 @@
       "work_mode": {
         "name": "Work Mode",
         "state": {
-          "SelfUse": "Self Use",
-          "Feedin": "Feed In",
-          "Backup": "Backup",
-          "PeakShaving": "Peak Shaving",
-          "ForceCharge": "Force Charge",
-          "ForceDischarge": "Force Discharge"
+          "self_use": "Self Use",
+          "feedin": "Feed In",
+          "backup": "Backup",
+          "peak_shaving": "Peak Shaving",
+          "force_charge": "Force Charge",
+          "force_discharge": "Force Discharge"
         }
       }
     },
